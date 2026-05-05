@@ -84,8 +84,7 @@ class ContinualLearner:
         self.seen_original_classes: List[int] = []
 
     def print_task_summary(self):
-        print("
-Continual tasks:")
+        print("Continual tasks:")
         for i, task_classes in enumerate(self.tasks):
             print(
                 f"Task {i}: class index {task_classes} | "
@@ -105,8 +104,7 @@ Continual tasks:")
 
         for task_id, task_classes in enumerate(self.tasks):
             if verbose:
-                print("
-" + "=" * 70)
+                print("" + "=" * 70)
                 print(f"START TASK {task_id}")
                 print(f"New class index: {task_classes}")
                 print(f"New class name : {[self.class_names[c] for c in task_classes]}")
@@ -188,8 +186,7 @@ Continual tasks:")
                     )
 
             if verbose:
-                print("
-Evaluation per task:")
+                print("Evaluation per task:")
 
             for eval_task_id in range(task_id + 1):
                 eval_classes = self.tasks[eval_task_id]
@@ -275,8 +272,7 @@ Evaluation per task:")
             )
 
             if verbose:
-                print("
-Cumulative seen-class evaluation:")
+                print("Cumulative seen-class evaluation:")
                 print(
                     f"After Task {task_id} | Seen Classes | "
                     f"Acc: {seen_metrics['accuracy']:.4f} | "
@@ -305,8 +301,7 @@ Cumulative seen-class evaluation:")
                 )
 
                 if verbose:
-                    print(f"
-Replay memory total samples after update: {len(self.memory)}")
+                    print(f"Replay memory total samples after update: {len(self.memory)}")
 
             # Teacher is always stored, but it is only used when strategy uses KD.
             self.teacher_model = copy.deepcopy(self.model)
