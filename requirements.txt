@@ -1,9 +1,7 @@
-torch
-torchvision
-scikit-learn
-pandas
-numpy
-pillow
-tqdm
-# Optional, only required if you use load_medmnist_dataset()
-medmnist
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.23.0
+pandas>=1.5.0
+scikit-learn>=1.2.0
+Pillow>=9.0.0
+PyYAML>=6.0

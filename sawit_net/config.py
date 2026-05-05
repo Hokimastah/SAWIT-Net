@@ -1,70 +1,76 @@
-from dataclasses import dataclass
-from typing import List, Optional, Union
+"""Configuration objects for SAWIT-Net."""
 
+from __future__ import annotations
 
-TaskClass = Union[int, str]
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+import yaml
 
 
 @dataclass
-class CLConfig:
-    # Strategy:
-    # - "replay_kd"   : replay + knowledge distillation
-    # - "replay_only" : replay only
-    # - "kd_only"     : knowledge distillation only
-    # - "finetune"    : no replay and no distillation
-    strategy: str = "replay_kd"
+class SAWITConfig:
+    """Main configuration for SAWIT-Net.
 
-    # Continual task split. You can use class indices or class names.
-    tasks: Optional[List[List[TaskClass]]] = None
-    base_task_classes: Optional[int] = None
-    increment_classes: int = 2
-    shuffle_class_order: bool = False
+    The defaults follow the original experimental setup: ResNet-50, 512-dim
+    embedding, ArcFace, 112x112 input, replay buffer, and multi-component KD.
+    """
+
+    # Data
+    image_root: str = "."
+    dataset_type: str = "csv"  # csv or folder
+    image_col: str = "id"
+    label_col: str = "label"
+    image_size: int = 112
+    allow_missing_images: bool = False
 
     # Model
-    backbone: str = "resnet50"     # "resnet18", "resnet34", "resnet50"
-    use_pretrained: bool = False
-    freeze_backbone: bool = False
+    backbone: str = "resnet50"
+    pretrained: bool = True
+    emb_size: int = 512
+    head: str = "arcface"  # arcface or linear
+    arc_s: float = 30.0
+    arc_m: float = 0.5
 
     # Training
-    seed: int = 42
+    epochs: int = 5
     batch_size: int = 32
-    epochs_per_task: int = 5
-    learning_rate: float = 1e-4
-    weight_decay: float = 1e-4
-    optimizer_name: str = "adamw"  # "adamw" or "sgd"
+    lr: float = 1e-4
+    weight_decay: float = 0.0
+    optimizer: str = "adam"  # adam or sgd
+    num_workers: int = 2
+    seed: int = 42
+    device: str = "auto"
 
-    # Replay memory
-    memory_per_class: int = 100
+    # Continual learning
+    memory_limit: int = 500
+    min_per_class: int = 0
+    kd_weight: float = 0.30
+    ms_weight: float = 0.30
+    ckd_weight: float = 0.20
+    proto_weight: float = 0.15
+    ckd_temperature: float = 2.0
 
-    # Knowledge distillation
-    kd_lambda: float = 1.0
-    kd_temperature: float = 2.0
+    # Logging/checkpointing
+    verbose: bool = True
 
-    # Dataloader
-    num_workers: int = 0
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
-    # Output
-    output_dir: str = "outputs_cl"
-    save_checkpoint: bool = True
-    save_results: bool = True
+    @classmethod
+    def from_dict(cls, values: Dict[str, Any]) -> "SAWITConfig":
+        valid = {field.name for field in cls.__dataclass_fields__.values()}
+        return cls(**{k: v for k, v in values.items() if k in valid})
 
-    def use_replay(self) -> bool:
-        return self.strategy.lower() in {"replay_kd", "replay_only"}
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> "SAWITConfig":
+        with open(path, "r", encoding="utf-8") as f:
+            values = yaml.safe_load(f) or {}
+        return cls.from_dict(values)
 
-    def use_kd(self) -> bool:
-        return self.strategy.lower() in {"replay_kd", "kd_only"}
-
-    def validate(self):
-        valid = {"replay_kd", "replay_only", "kd_only", "finetune"}
-        if self.strategy.lower() not in valid:
-            raise ValueError(
-                f"strategy '{self.strategy}' is invalid. "
-                f"Use one of: {sorted(valid)}"
-            )
-
-        valid_backbone = {"resnet18", "resnet34", "resnet50"}
-        if self.backbone.lower() not in valid_backbone:
-            raise ValueError(
-                f"backbone '{self.backbone}' is invalid. "
-                f"Use one of: {sorted(valid_backbone)}"
-            )
+    def save_yaml(self, path: str | Path) -> None:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(self.to_dict(), f, sort_keys=False)

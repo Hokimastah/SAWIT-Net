@@ -1,38 +1,36 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sawit-net"
 version = "0.1.0"
-description = "SAWIT-Net: Self-Adaptive Weighted Incremental Transfer Network for continual image classification."
+description = "Strategic Adaptive Weight Integration and Transfer Network for continual image classification."
 readme = "README.md"
 requires-python = ">=3.9"
+license = {text = "MIT"}
 authors = [
-    { name = "Your Name" }
+  {name = "SAWIT-Net Contributors"}
 ]
-license = { text = "MIT" }
-keywords = ["continual-learning", "image-classification", "replay", "knowledge-distillation", "pytorch"]
+keywords = ["continual-learning", "image-classification", "arcface", "replay", "knowledge-distillation", "pytorch"]
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "torch",
-    "torchvision",
-    "scikit-learn",
-    "pandas",
-    "numpy",
-    "pillow",
-    "tqdm"
+  "torch>=2.0.0",
+  "torchvision>=0.15.0",
+  "numpy>=1.23.0",
+  "pandas>=1.5.0",
+  "scikit-learn>=1.2.0",
+  "Pillow>=9.0.0",
+  "PyYAML>=6.0",
 ]
 
-[project.urls]
-Homepage = "https://github.com/your-username/sawit-net"
-Repository = "https://github.com/your-username/sawit-net"
+[project.scripts]
+sawit-train = "sawit_net.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
 include = ["sawit_net*"]
