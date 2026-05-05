@@ -20,6 +20,7 @@ from .losses import (
     embedding_distillation_loss,
     multiscale_distillation_loss,
     prototype_preservation_loss,
+    prototype_relation_distillation_loss,
 )
 from .metrics import evaluate, forgetting_score
 from .utils import resolve_device, set_seed
@@ -35,8 +36,8 @@ class SAWITTrainer:
     - ``finetune``: new data + classification loss only.
     """
 
-    VALID_MODES = {"full", "replay_only", "kd_only", "finetune"}
-
+    VALID_MODES = {"full", "replay_only", "prd_only", "kd_only", "finetune"}
+    
     def __init__(self, cfg: SAWITConfig):
         self.cfg = cfg
         self.device = resolve_device(cfg.device)
@@ -110,6 +111,50 @@ class SAWITTrainer:
             raise RuntimeError("Model has not been created.")
         feat, logits = self.model(x, y)
         return feat, logits
+    
+    @torch.no_grad()
+    def _update_prototypes_only(self, loader, merge: bool = True) -> None:
+        """
+        Update class prototypes without storing replay images.
+
+        This is used by prd_only mode. It keeps the method replay-free
+        while still allowing old/new class prototypes to be maintained
+        across sessions.
+        """
+        if self.model is None:
+            raise RuntimeError("Model has not been created.")
+
+        was_training = self.model.training
+        self.model.eval()
+
+        features_by_label = {}
+
+        for x, y, _ in loader:
+            x = x.to(self.device)
+            y = y.to(self.device)
+
+            feat = self.model(x)
+
+            if isinstance(feat, tuple):
+                feat = feat[0]
+
+            for i in range(len(y)):
+                label = int(y[i].detach().cpu().item())
+                features_by_label.setdefault(label, []).append(feat[i].detach())
+
+        new_prototypes = {}
+
+        for label, feats in features_by_label.items():
+            feat_tensor = torch.stack(feats).to(self.device)
+            new_prototypes[label] = feat_tensor.mean(dim=0).detach()
+
+        if merge:
+            self.buffer.prototypes.update(new_prototypes)
+        else:
+            self.buffer.prototypes = new_prototypes
+
+        if was_training:
+            self.model.train()
 
     def fit_base(self, source):
         """Train the base/offline session."""
@@ -140,6 +185,9 @@ class SAWITTrainer:
     def fit_incremental(self, source, mode: str = "full"):
         """Train one incremental session."""
         mode = mode.lower()
+        if mode == "kd_only":
+            mode = "prd_only"
+
         if mode not in self.VALID_MODES:
             raise ValueError(f"mode must be one of {sorted(self.VALID_MODES)}")
         if self.model is None:
@@ -148,9 +196,17 @@ class SAWITTrainer:
         new_dataset = build_dataset(source, self.cfg, self.label_map)
         self._expand_if_needed()
 
+        old_prototypes = {
+            int(k): v.detach().clone().to(self.device)
+            for k, v in self.buffer.prototypes.items()
+        }
+
         use_replay = mode in {"full", "replay_only"} and len(self.buffer) > 0
-        use_kd = mode in {"full", "kd_only"}
+        use_kd = mode == "full"
+        use_prd = mode == "prd_only"
         use_proto = mode == "full"
+        if use_prd:
+            self.buffer.buffer_df = self.buffer.buffer_df.iloc[0:0].copy()
 
         if use_replay:
             replay_dataset = self.buffer.as_dataset(self.label_map)
@@ -194,6 +250,21 @@ class SAWITTrainer:
                     loss_ckd = contrastive_kd_loss(new_feat, old_feat, temperature=self.cfg.ckd_temperature)
                     loss = loss + self.cfg.kd_weight * loss_kd + self.cfg.ms_weight * loss_ms + self.cfg.ckd_weight * loss_ckd
 
+                if use_prd and len(old_prototypes) > 0:
+                    new_feat, _ = self.model(x, return_features=True)
+
+                    with torch.no_grad():
+                        old_feat, _ = old_model(x, return_features=True)
+
+                    loss_kd = prototype_relation_distillation_loss(
+                        new_feat=new_feat,
+                        old_feat=old_feat,
+                        prototypes=old_prototypes,
+                        temperature=self.cfg.ckd_temperature,
+                    )
+
+                    loss = loss + self.cfg.kd_weight * loss_kd
+                    
                 if use_proto and len(self.buffer.prototypes) > 0:
                     loss_proto = prototype_preservation_loss(feat, y, self.buffer.prototypes)
                     loss = loss + self.cfg.proto_weight * loss_proto
@@ -216,8 +287,13 @@ class SAWITTrainer:
                 f"ckd={running['ckd']/denom:.4f}, proto={running['proto']/denom:.4f}"
             )
 
-        # Update buffer after the incremental session using both old replay and new data when possible.
-        self.buffer.update(self.model, train_loader, self.label_map)
+        # Update memory after incremental session.
+        # prd_only must remain replay-free: update prototypes only, not image buffer.
+        if use_prd:
+            self._update_prototypes_only(new_loader, merge=True)
+        else:
+            self.buffer.update(self.model, train_loader, self.label_map)
+
         return new_loader
 
     def fit_two_stage(self, base_source, inc_source, mode: str = "full", report: bool = False) -> Dict[str, object]:

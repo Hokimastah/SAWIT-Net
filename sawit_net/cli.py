@@ -19,7 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--incremental", type=str, required=True, help="Incremental CSV path or incremental folder path.")
     parser.add_argument("--image-col", type=str, default=None, help="CSV image path column. Default: id")
     parser.add_argument("--label-col", type=str, default=None, help="CSV label column. Default: label")
-    parser.add_argument("--mode", type=str, default="full", choices=["full", "replay_only", "kd_only", "finetune"])
+    parser.add_argument("--mode",type=str,default="full",choices=["full", "replay_only", "prd_only", "kd_only", "finetune"])
     parser.add_argument("--backbone", type=str, default=None, choices=["resnet18", "resnet34", "resnet50", "resnet101"])
     parser.add_argument("--head", type=str, default=None, choices=["arcface", "linear"])
     parser.add_argument("--epochs", type=int, default=None)
