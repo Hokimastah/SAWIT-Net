@@ -2,6 +2,8 @@
 
 **SAWIT-Net** stands for **Self-Adaptive Weighted Incremental Transfer Network**.
 
+![my icon](<skip it/SAWIT-Net ikon.png>)
+
 SAWIT-Net is a lightweight continual learning library for image classification. It is designed to reduce catastrophic forgetting when a model learns new classes incrementally. The library supports replay memory, knowledge distillation, and their combination in one training pipeline.
 
 The main objective of SAWIT-Net is to allow an image classification model to learn new classes over multiple training stages while preserving knowledge from previously learned classes.
