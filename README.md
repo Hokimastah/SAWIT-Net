@@ -1,30 +1,37 @@
 # SAWIT-Net
 
+![alt text](<skip it/SAWIT-Net ikon.png>)
+
 **SAWIT-Net** stands for **Strategic Adaptive Weight Integration and Transfer Network**.
 
 SAWIT-Net is a PyTorch-based continual image classification toolkit designed to reduce **catastrophic forgetting** when a model learns new classes or new data sessions over time. It combines **ArcFace-based metric learning**, **herding replay**, **knowledge distillation**, **multi-scale feature preservation**, **contrastive distillation**, and **prototype preservation** in a single reusable training package.
 
-This repository is written as a normal Python tool/library, so it can be installed, imported, reused in notebooks, or executed from the command line.
+This repository is designed as a standard Python tool/library, so it can be installed directly from GitHub, imported in Python scripts or notebooks, and executed from the command line.
 
 ---
 
 ## Core Idea
 
-In standard fine-tuning, a model trained on old classes often performs well on new classes but forgets the old ones. SAWIT-Net addresses this by combining five mechanisms:
+In standard fine-tuning, a model trained on old classes often performs well on new classes but forgets the old ones. This problem is known as **catastrophic forgetting**.
 
-1. **ArcFace classification head**  
-   Learns discriminative embeddings using angular-margin classification. This is useful for identity-like or fine-grained image recognition tasks.
+SAWIT-Net addresses this problem by combining several continual learning mechanisms:
 
-2. **Herding replay buffer**  
-   Selects representative old samples by computing class centroids and keeping the samples closest to each centroid.
+1. **ArcFace Classification Head**  
+   Learns discriminative embeddings using angular-margin classification. This is useful for identity-like, fine-grained, or visually similar image classification tasks.
 
-3. **Embedding knowledge distillation**  
-   Forces the new model to preserve the old model's embedding representation.
+2. **Herding Replay Buffer**  
+   Stores representative samples from old classes by computing class centroids and selecting samples closest to each centroid.
 
-4. **Multi-scale feature distillation**  
-   Preserves intermediate feature maps from several ResNet stages, not only the final embedding.
+3. **Embedding Knowledge Distillation**  
+   Encourages the new model to preserve the old model's embedding representation.
 
-5. **Prototype preservation**  
+4. **Multi-scale Feature Distillation**  
+   Preserves intermediate feature maps from several backbone stages, not only the final embedding.
+
+5. **Contrastive Knowledge Distillation**  
+   Maintains similarity relationships between old and new feature representations.
+
+6. **Prototype Preservation**  
    Keeps old-class embeddings close to frozen class prototypes obtained from the replay buffer.
 
 The full SAWIT-Net objective is:
@@ -58,14 +65,20 @@ Embedding Layer
    │
    ├── ArcFace Classification Loss
    ├── Embedding Distillation
-   ├── Contrastive KD
+   ├── Contrastive Knowledge Distillation
    └── Prototype Preservation
 ```
 
-Default backbone: **ResNet-50**  
-Default embedding size: **512**  
-Default input size: **112 × 112**  
-Default head: **ArcFace**
+Default configuration:
+
+| Component | Default |
+|---|---|
+| Backbone | ResNet-50 |
+| Input size | 112 × 112 |
+| Embedding size | 512 |
+| Classification head | ArcFace |
+| Replay strategy | Herding replay |
+| Main goal | Reducing catastrophic forgetting |
 
 ---
 
@@ -103,101 +116,121 @@ SAWIT-Net/
 
 ## Installation
 
-### 1. Clone or extract the project
+SAWIT-Net can be installed directly from GitHub.
 
-```bash
-git clone https://github.com/your-username/SAWIT-Net.git
-cd SAWIT-Net
+### Google Colab
+
+Run this command:
+
+```python
+!pip install git+https://github.com/Hokimastah/SAWIT-Net.git
 ```
 
-If you are using a ZIP file, extract it first:
+Then test the import:
 
-```bash
-unzip SAWIT-Net.zip
-cd SAWIT-Net
+```python
+from sawit_net import SAWITConfig, SAWITTrainer
+
+print("SAWIT-Net imported successfully")
 ```
 
-### 2. Install dependencies
+### Local Python / VS Code / Jupyter Notebook
+
+Install directly from GitHub:
 
 ```bash
-pip install -r requirements.txt
-```
-
-### 3. Install SAWIT-Net as a local editable package
-
-```bash
-pip install -e .
-```
-
-### 4. Test the installation
-
-```bash
-python -c "import sawit_net; print(sawit_net.__version__)"
-```
-
-Expected output:
-
-```text
-0.1.0
-```
-
----
-
-## Fixing `ModuleNotFoundError: No module named 'sawit_net'`
-
-This error means Python cannot find the package. Use one of these fixes.
-
-### Local Python / VS Code / Jupyter
-
-Run this from the root folder containing `pyproject.toml`:
-
-```bash
-pip install -e .
+pip install git+https://github.com/Hokimastah/SAWIT-Net.git
 ```
 
 For Jupyter Notebook, use the same Python kernel:
 
 ```python
 import sys
-!{sys.executable} -m pip install -e .
-```
-
-### Google Colab
-
-```python
-from google.colab import files
-uploaded = files.upload()
-```
-
-Upload `SAWIT-Net.zip`, then run:
-
-```python
-!unzip -q SAWIT-Net.zip -d /content
-%cd /content/SAWIT-Net
-!pip install -e .
+!{sys.executable} -m pip install git+https://github.com/Hokimastah/SAWIT-Net.git
 ```
 
 Then test:
 
 ```python
 from sawit_net import SAWITConfig, SAWITTrainer
+
 print("SAWIT-Net imported successfully")
+```
+
+---
+
+## Upgrade Installation
+
+If SAWIT-Net has already been installed and you want to reinstall the latest version from GitHub, use:
+
+```bash
+pip install --upgrade --force-reinstall git+https://github.com/Hokimastah/SAWIT-Net.git
+```
+
+For Google Colab:
+
+```python
+!pip install --upgrade --force-reinstall git+https://github.com/Hokimastah/SAWIT-Net.git
+```
+
+---
+
+## Fixing `ModuleNotFoundError: No module named 'sawit_net'`
+
+This error usually means SAWIT-Net has not been installed in the active Python environment.
+
+### Google Colab
+
+Run:
+
+```python
+!pip install git+https://github.com/Hokimastah/SAWIT-Net.git
+```
+
+Then import again:
+
+```python
+from sawit_net import SAWITConfig, SAWITTrainer
+```
+
+If the error still appears, restart the runtime and run the import again.
+
+### Jupyter Notebook
+
+Use the same Python executable as the active notebook kernel:
+
+```python
+import sys
+!{sys.executable} -m pip install git+https://github.com/Hokimastah/SAWIT-Net.git
+```
+
+Then:
+
+```python
+from sawit_net import SAWITConfig, SAWITTrainer
+```
+
+Check the active Python environment:
+
+```python
+import sys
+print(sys.executable)
 ```
 
 ---
 
 ## Supported Dataset Formats
 
-SAWIT-Net supports two data formats:
+SAWIT-Net supports two dataset formats:
 
 1. CSV dataset
-2. ImageFolder-style dataset
+2. Folder dataset
 
 ---
 
 ## 1. CSV Dataset Format
 
-Your CSV must contain at least two columns:
+Your CSV file must contain at least two columns:
 
 ```csv
 id,label
@@ -206,14 +239,14 @@ person_001/img_002.jpg,person_001
 person_002/img_001.jpg,person_002
 ```
 
-By default:
+Default columns:
 
 | Column | Meaning |
 |---|---|
 | `id` | Relative or absolute image path |
 | `label` | Class name |
 
-Example folder:
+Example folder structure:
 
 ```text
 data/
@@ -251,6 +284,8 @@ person_004/img_001.jpg,person_004
 
 SAWIT-Net also supports folder datasets similar to `torchvision.datasets.ImageFolder`.
 
+Example:
+
 ```text
 data/
 ├── base/
@@ -272,7 +307,7 @@ Each folder name becomes the class label.
 
 ## Quick Start: Python API
 
-### CSV training
+### CSV Training
 
 ```python
 from sawit_net import SAWITConfig, SAWITTrainer
@@ -301,10 +336,11 @@ results = trainer.fit_two_stage(
 )
 
 print(results)
+
 trainer.save("./checkpoints/sawit_net.pth")
 ```
 
-### Folder training
+### Folder Training
 
 ```python
 from sawit_net import SAWITConfig, SAWITTrainer
@@ -313,12 +349,16 @@ cfg = SAWITConfig(
     dataset_type="folder",
     backbone="resnet50",
     head="arcface",
+    image_size=112,
+    emb_size=512,
     epochs=5,
     batch_size=32,
+    lr=1e-4,
     memory_limit=500,
 )
 
 trainer = SAWITTrainer(cfg)
+
 results = trainer.fit_two_stage(
     base_source="./data/base",
     inc_source="./data/incremental",
@@ -326,6 +366,7 @@ results = trainer.fit_two_stage(
 )
 
 print(results)
+
 trainer.save("./checkpoints/sawit_net_folder.pth")
 ```
 
@@ -333,7 +374,13 @@ trainer.save("./checkpoints/sawit_net_folder.pth")
 
 ## Command Line Usage
 
-After installation with `pip install -e .`, you can use the CLI command:
+After installation, SAWIT-Net provides a CLI command:
+
+```bash
+sawit-train
+```
+
+### CSV Dataset
 
 ```bash
 sawit-train \
@@ -348,7 +395,7 @@ sawit-train \
   --output checkpoints/sawit_net.pth
 ```
 
-For folder datasets:
+### Folder Dataset
 
 ```bash
 sawit-train \
@@ -362,7 +409,7 @@ sawit-train \
   --output checkpoints/sawit_net_folder.pth
 ```
 
-The CLI also saves metrics to:
+The CLI saves the trained model to the selected output path and saves metrics to:
 
 ```text
 checkpoints/metrics.json
@@ -377,16 +424,32 @@ SAWIT-Net includes four experimental modes.
 | Mode | Replay | KD | Multi-scale KD | Contrastive KD | Prototype Loss | Description |
 |---|---:|---:|---:|---:|---:|---|
 | `finetune` | No | No | No | No | No | Baseline. Trains only on new data. Usually causes catastrophic forgetting. |
-| `replay_only` | Yes | No | No | No | No | Uses old representative samples but no distillation. |
+| `replay_only` | Yes | No | No | No | No | Uses old representative samples without distillation. |
 | `kd_only` | No | Yes | Yes | Yes | No | Uses teacher-student distillation without replay data. |
 | `full` | Yes | Yes | Yes | Yes | Yes | Complete SAWIT-Net method. |
 
-Example:
+Example comparison:
 
 ```python
+from sawit_net import SAWITConfig, SAWITTrainer
+
+cfg = SAWITConfig(
+    dataset_type="csv",
+    image_root="./data/images",
+    epochs=5,
+    batch_size=32,
+    memory_limit=500,
+)
+
 for mode in ["finetune", "replay_only", "kd_only", "full"]:
     trainer = SAWITTrainer(cfg)
-    results = trainer.fit_two_stage("base.csv", "incremental.csv", mode=mode)
+
+    results = trainer.fit_two_stage(
+        base_source="./data/base.csv",
+        inc_source="./data/incremental.csv",
+        mode=mode,
+    )
+
     print(mode, results)
 ```
 
@@ -440,7 +503,9 @@ A lower forgetting score is better.
 
 ## Configuration File
 
-You can use YAML configuration from `configs/default.yaml`.
+SAWIT-Net can use YAML configuration from `configs/default.yaml`.
+
+Example:
 
 ```yaml
 image_root: ./data/images
@@ -486,9 +551,9 @@ Command-line arguments override the YAML values.
 
 | Parameter | Default | Description |
 |---|---:|---|
-| `backbone` | `resnet50` | CNN backbone. Supports `resnet18`, `resnet34`, `resnet50`, `resnet101`. |
+| `backbone` | `resnet50` | CNN backbone. Supports `resnet18`, `resnet34`, `resnet50`, and `resnet101`. |
 | `emb_size` | `512` | Final embedding dimension. |
-| `head` | `arcface` | Classification head: `arcface` or `linear`. |
+| `head` | `arcface` | Classification head. Supports `arcface` or `linear`. |
 | `arc_s` | `30.0` | ArcFace scale. |
 | `arc_m` | `0.5` | ArcFace angular margin. |
 | `memory_limit` | `500` | Maximum number of replay samples. |
@@ -511,7 +576,7 @@ trainer.save("checkpoints/sawit_net.pth")
 The checkpoint stores:
 
 - model weights
-- config
+- configuration
 - label map
 - replay buffer metadata
 - class prototypes
@@ -526,77 +591,112 @@ trainer = SAWITTrainer.load("checkpoints/sawit_net.pth")
 
 ---
 
-## Google Colab Usage
+## Google Colab Example
 
-Upload the ZIP file to Colab, then:
+Install SAWIT-Net:
 
 ```python
-!unzip -q SAWIT-Net.zip -d /content
-%cd /content/SAWIT-Net
-!pip install -e .
+!pip install git+https://github.com/Hokimastah/SAWIT-Net.git
 ```
 
-Check import:
+Import:
 
 ```python
 from sawit_net import SAWITConfig, SAWITTrainer
 ```
 
-Run the CSV example:
+Prepare configuration:
 
 ```python
-!python examples/train_csv.py
+cfg = SAWITConfig(
+    dataset_type="csv",
+    image_root="./data/images",
+    image_col="id",
+    label_col="label",
+    backbone="resnet50",
+    head="arcface",
+    image_size=112,
+    emb_size=512,
+    epochs=5,
+    batch_size=32,
+    lr=1e-4,
+    memory_limit=500,
+)
 ```
 
-Run the MedMNIST demo:
+Train:
 
 ```python
-!pip install medmnist
-!python examples/colab_medmnist_demo.py
+trainer = SAWITTrainer(cfg)
+
+results = trainer.fit_two_stage(
+    base_source="./data/base.csv",
+    inc_source="./data/incremental.csv",
+    mode="full",
+)
+
+print(results)
+```
+
+Save:
+
+```python
+trainer.save("./sawit_net.pth")
 ```
 
 ---
 
-## How to Upload to GitHub
+## MedMNIST Example
 
-From the `SAWIT-Net` folder:
+Install dependencies:
 
-```bash
-git init
-git add .
-git commit -m "Initial release of SAWIT-Net"
-git branch -M main
-git remote add origin https://github.com/your-username/SAWIT-Net.git
-git push -u origin main
+```python
+!pip install medmnist
+!pip install git+https://github.com/Hokimastah/SAWIT-Net.git
 ```
 
-If you already created the remote and get:
+Then import:
+
+```python
+from sawit_net import SAWITConfig, SAWITTrainer
+```
+
+You can use MedMNIST by preparing the dataset into either:
+
+1. CSV format
+2. Folder format
+
+For CSV format, create two CSV files:
 
 ```text
-error: remote origin already exists.
+base.csv
+incremental.csv
 ```
 
-Use:
+Each CSV must contain:
 
-```bash
-git remote set-url origin https://github.com/your-username/SAWIT-Net.git
-git push -u origin main
+```csv
+id,label
+image_001.png,class_0
+image_002.png,class_1
 ```
+
+Then train using the normal CSV API.
 
 ---
 
 ## Recommended Experiment Protocol
 
-For a fair comparison, run all four modes on the same split:
+For a fair comparison, run all four modes on the same base and incremental split:
 
 ```bash
-sawit-train --base base.csv --incremental incremental.csv --mode finetune
-sawit-train --base base.csv --incremental incremental.csv --mode replay_only
-sawit-train --base base.csv --incremental incremental.csv --mode kd_only
-sawit-train --base base.csv --incremental incremental.csv --mode full
+sawit-train --dataset-type csv --image-root ./data/images --base ./data/base.csv --incremental ./data/incremental.csv --mode finetune
+sawit-train --dataset-type csv --image-root ./data/images --base ./data/base.csv --incremental ./data/incremental.csv --mode replay_only
+sawit-train --dataset-type csv --image-root ./data/images --base ./data/base.csv --incremental ./data/incremental.csv --mode kd_only
+sawit-train --dataset-type csv --image-root ./data/images --base ./data/base.csv --incremental ./data/incremental.csv --mode full
 ```
 
-Then compare:
+Compare:
 
 1. `base_after.accuracy`
 2. `incremental_after.accuracy`
@@ -604,6 +704,40 @@ Then compare:
 4. `forgetting_score`
 
 A strong continual learning method should maintain high old-class accuracy while still learning the new classes.
+
+---
+
+## How to Publish SAWIT-Net to GitHub
+
+From the `SAWIT-Net` project folder:
+
+```bash
+git init
+git add .
+git commit -m "Initial release of SAWIT-Net"
+git branch -M main
+git remote add origin https://github.com/Hokimastah/SAWIT-Net.git
+git push -u origin main
+```
+
+If the remote already exists:
+
+```bash
+git remote set-url origin https://github.com/Hokimastah/SAWIT-Net.git
+git push -u origin main
+```
+
+After the repository is pushed, users can install SAWIT-Net directly with:
+
+```bash
+pip install git+https://github.com/Hokimastah/SAWIT-Net.git
+```
+
+For Google Colab:
+
+```python
+!pip install git+https://github.com/Hokimastah/SAWIT-Net.git
+```
 
 ---
 
@@ -615,6 +749,7 @@ A strong continual learning method should maintain high old-class accuracy while
 - Very small replay buffers may reduce old-class retention.
 - `kd_only` may not be enough if the new data distribution is very different from the old data distribution.
 - Training with ResNet-50 is GPU-recommended.
+- For small datasets, reduce the batch size and number of epochs first before increasing model complexity.
 
 ---
 
@@ -627,8 +762,11 @@ cfg = SAWITConfig()
 trainer = SAWITTrainer(cfg)
 ```
 
----
+## Citation
 
-## License
+If you use SAWIT-Net in a project, thesis, or publication, please cite this repository:
 
-This project is released under the MIT License.
+```text
+SAWIT-Net: Strategic Adaptive Weight Integration and Transfer Network.
+GitHub Repository: https://github.com/Hokimastah/SAWIT-Net
+```
