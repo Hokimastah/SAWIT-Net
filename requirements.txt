@@ -1,0 +1,9 @@
+torch
+torchvision
+scikit-learn
+pandas
+numpy
+pillow
+tqdm
+# Optional, only required if you use load_medmnist_dataset()
+medmnist
