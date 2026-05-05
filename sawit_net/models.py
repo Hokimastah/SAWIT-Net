@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import List, Tuple
-
 import torch
 from torch import nn
+import torch.nn.functional as F
 from torchvision import models
 
 from .arcface import ArcFaceLayer
@@ -27,10 +26,11 @@ _RESNET_WEIGHTS = {
 
 
 class SAWITModel(nn.Module):
-    """ResNet embedding network with ArcFace or linear classification head.
+    """ResNet embedding network with classifier and learnable prototypes.
 
-    The model exposes intermediate feature maps from layer2, layer3, and layer4.
-    These maps are used for multi-scale distillation during incremental training.
+    The normal classifier head is used by ``finetune``, ``replay_only``, and
+    ``full``. The prototype bank is used by ``prd_only`` and also acts as an
+    auxiliary stabilizer in ``full``.
     """
 
     def __init__(
@@ -38,8 +38,9 @@ class SAWITModel(nn.Module):
         num_classes: int,
         backbone: str = "resnet50",
         emb_size: int = 512,
+        proj_size: int = 128,
         pretrained: bool = True,
-        head: str = "arcface",
+        head: str = "linear",
         arc_s: float = 30.0,
         arc_m: float = 0.5,
     ):
@@ -54,6 +55,7 @@ class SAWITModel(nn.Module):
 
         self.backbone_name = backbone
         self.emb_size = int(emb_size)
+        self.proj_size = int(proj_size)
         self.head_type = head.lower()
 
         self.layer0 = nn.Sequential(base.conv1, base.bn1, base.relu, base.maxpool)
@@ -63,6 +65,18 @@ class SAWITModel(nn.Module):
         self.layer4 = base.layer4
         self.pool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(base.fc.in_features, emb_size)
+
+        # Projection head for supervised contrastive representation learning.
+        self.projector = nn.Sequential(
+            nn.Linear(emb_size, emb_size),
+            nn.ReLU(inplace=True),
+            nn.Linear(emb_size, proj_size),
+        )
+
+        # Learnable class prototypes in embedding space. PRD uses these as the
+        # classifier in replay-free mode.
+        self.prototypes = nn.Parameter(torch.empty(num_classes, emb_size))
+        nn.init.xavier_uniform_(self.prototypes)
 
         if self.head_type == "arcface":
             self.classifier = ArcFaceLayer(emb_size, num_classes, s=arc_s, m=arc_m)
@@ -87,6 +101,14 @@ class SAWITModel(nn.Module):
         embedding = self.fc(pooled)
         return embedding, [f2, f3, f4]
 
+    def project(self, embedding: torch.Tensor) -> torch.Tensor:
+        return self.projector(embedding)
+
+    def prototype_logits_from_embedding(self, embedding: torch.Tensor, temperature: float = 1.0) -> torch.Tensor:
+        feat = F.normalize(embedding, dim=1)
+        proto = F.normalize(self.prototypes, dim=1)
+        return torch.matmul(feat, proto.T) / float(temperature)
+
     def forward(self, x: torch.Tensor, labels: torch.Tensor | None = None, return_features: bool = False):
         embedding, maps = self.extract_features(x)
         if return_features:
@@ -109,19 +131,33 @@ class SAWITModel(nn.Module):
             return self.classifier.cosine_logits(embedding)
         return self.classifier(embedding)
 
+    def predict_prototype_logits(self, x: torch.Tensor, temperature: float = 1.0) -> torch.Tensor:
+        embedding, _ = self.extract_features(x)
+        return self.prototype_logits_from_embedding(embedding, temperature=temperature)
+
     def expand_classes(self, new_num_classes: int) -> None:
-        """Expand the classifier head and preserve existing class weights."""
+        """Expand classifier and prototype bank while preserving old weights."""
         new_num_classes = int(new_num_classes)
         if new_num_classes <= self.num_classes:
             return
 
+        old_num_classes = self.num_classes
+
+        # Expand normal classifier.
         if isinstance(self.classifier, ArcFaceLayer):
             self.classifier = self.classifier.expand(new_num_classes)
-            return
+        else:
+            old = self.classifier
+            new = nn.Linear(old.in_features, new_num_classes).to(old.weight.device)
+            with torch.no_grad():
+                new.weight[: old.out_features].copy_(old.weight.data)
+                new.bias[: old.out_features].copy_(old.bias.data)
+            self.classifier = new
 
-        old = self.classifier
-        new = nn.Linear(old.in_features, new_num_classes).to(old.weight.device)
+        # Expand learnable prototypes.
+        old_proto = self.prototypes
+        new_proto = nn.Parameter(torch.empty(new_num_classes, self.emb_size, device=old_proto.device))
+        nn.init.xavier_uniform_(new_proto)
         with torch.no_grad():
-            new.weight[: old.out_features].copy_(old.weight.data)
-            new.bias[: old.out_features].copy_(old.bias.data)
-        self.classifier = new
+            new_proto[:old_num_classes].copy_(old_proto.data)
+        self.prototypes = new_proto

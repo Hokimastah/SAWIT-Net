@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, List
+from typing import Dict, List
 
 import torch
 import torch.nn.functional as F
@@ -18,7 +18,8 @@ def multiscale_distillation_loss(new_maps: List[torch.Tensor], old_maps: List[to
     if len(new_maps) != len(old_maps):
         raise ValueError("new_maps and old_maps must have the same length.")
     if len(new_maps) == 0:
-        return torch.tensor(0.0)
+        device = old_maps[0].device if old_maps else "cpu"
+        return torch.tensor(0.0, device=device)
 
     losses = []
     for nf, of in zip(new_maps, old_maps):
@@ -35,6 +36,53 @@ def contrastive_kd_loss(new_feat: torch.Tensor, old_feat: torch.Tensor, temperat
     logits = torch.matmul(new_norm, old_norm.T) / float(temperature)
     labels = torch.arange(logits.size(0), device=logits.device)
     return F.cross_entropy(logits, labels)
+
+
+def supervised_contrastive_loss(features: torch.Tensor, labels: torch.Tensor, temperature: float = 0.1) -> torch.Tensor:
+    """Supervised contrastive loss using same-label samples as positives.
+
+    This is a single-view implementation. It works when each mini-batch contains
+    at least two samples for some classes. If no positive pairs exist, it returns
+    zero instead of NaN.
+    """
+    device = features.device
+    labels = labels.view(-1)
+    features = F.normalize(features, dim=1)
+
+    logits = torch.matmul(features, features.T) / float(temperature)
+    logits = logits - logits.max(dim=1, keepdim=True).values.detach()
+
+    batch_size = features.size(0)
+    self_mask = torch.eye(batch_size, dtype=torch.bool, device=device)
+    positive_mask = labels.unsqueeze(0).eq(labels.unsqueeze(1)) & (~self_mask)
+
+    exp_logits = torch.exp(logits) * (~self_mask).float()
+    log_prob = logits - torch.log(exp_logits.sum(dim=1, keepdim=True).clamp_min(1e-12))
+
+    positives_per_row = positive_mask.sum(dim=1)
+    valid = positives_per_row > 0
+    if not valid.any():
+        return torch.tensor(0.0, device=device)
+
+    mean_log_prob_pos = (positive_mask.float() * log_prob).sum(dim=1) / positives_per_row.clamp_min(1)
+    return -mean_log_prob_pos[valid].mean()
+
+
+def prototype_tightness_loss(
+    features: torch.Tensor,
+    labels: torch.Tensor,
+    prototypes: torch.Tensor,
+) -> torch.Tensor:
+    """Prototype learning without negative contrasts.
+
+    This follows the PRD paper's Lp idea: pull each class prototype toward its
+    own class samples without pushing other class prototypes away. The sample
+    features are stop-gradient here, so this term optimizes prototypes only.
+    """
+    if features.numel() == 0:
+        return torch.tensor(0.0, device=features.device)
+    selected_prototypes = prototypes[labels]
+    return -(F.cosine_similarity(F.normalize(selected_prototypes, dim=1), F.normalize(features.detach(), dim=1))).mean()
 
 
 def prototype_preservation_loss(
@@ -58,54 +106,35 @@ def prototype_preservation_loss(
     feat_tensor = torch.stack(feat_list)
     return (1.0 - F.cosine_similarity(feat_tensor, proto_tensor)).mean()
 
+
 def prototype_relation_distillation_loss(
     new_feat: torch.Tensor,
     old_feat: torch.Tensor,
-    prototypes: Dict[int, torch.Tensor],
-    temperature: float = 2.0,
+    current_prototypes: torch.Tensor,
+    old_prototypes: torch.Tensor,
+    temperature: float = 0.2,
 ) -> torch.Tensor:
+    """Prototype-Sample Relation Distillation.
+
+    For each old-class prototype, preserve its softmax distribution over the
+    current mini-batch samples. Unlike the earlier simplified implementation,
+    this compares old model + old prototypes against current model + current
+    prototypes, so old prototypes can evolve with the representation.
     """
-    PRD-style Prototype-Sample Relation Distillation.
-
-    This loss preserves the relative similarity distribution between
-    old class prototypes and current mini-batch samples.
-
-    Unlike ordinary KD, this does not force the student feature to be
-    identical to the teacher feature. Instead, it preserves how old
-    prototypes relate to the current batch.
-
-    Args:
-        new_feat:
-            Student/current model embeddings for the current batch.
-        old_feat:
-            Teacher/previous model embeddings for the same current batch.
-        prototypes:
-            Frozen old-class prototypes from previous sessions.
-        temperature:
-            Softmax temperature.
-
-    Returns:
-        KL divergence between old prototype-sample relation distribution
-        and current prototype-sample relation distribution.
-    """
-    if len(prototypes) == 0:
+    if old_prototypes.numel() == 0:
         return torch.tensor(0.0, device=new_feat.device)
 
-    proto_tensor = torch.stack(
-        [p.detach().to(new_feat.device) for p in prototypes.values()]
-    )
+    n_old = old_prototypes.size(0)
+    current_old_prototypes = current_prototypes[:n_old]
 
-    proto_tensor = F.normalize(proto_tensor, dim=1)
-    new_feat = F.normalize(new_feat, dim=1)
+    old_proto = F.normalize(old_prototypes.detach().to(new_feat.device), dim=1)
+    cur_proto = F.normalize(current_old_prototypes, dim=1)
     old_feat = F.normalize(old_feat.detach(), dim=1)
+    new_feat = F.normalize(new_feat, dim=1)
 
-    # Similarity of each old prototype to each sample in the mini-batch.
-    # Shape: [num_old_prototypes, batch_size]
-    current_logits = torch.matmul(proto_tensor, new_feat.T) / float(temperature)
-    old_logits = torch.matmul(proto_tensor, old_feat.T) / float(temperature)
+    old_logits = torch.matmul(old_proto, old_feat.T) / float(temperature)
+    cur_logits = torch.matmul(cur_proto, new_feat.T) / float(temperature)
 
-    # Distill the prototype-sample relation distribution.
-    current_log_prob = F.log_softmax(current_logits, dim=1)
     old_prob = F.softmax(old_logits, dim=1).detach()
-
-    return F.kl_div(current_log_prob, old_prob, reduction="batchmean")
+    cur_log_prob = F.log_softmax(cur_logits, dim=1)
+    return F.kl_div(cur_log_prob, old_prob, reduction="batchmean")

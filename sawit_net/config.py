@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import yaml
 
@@ -13,8 +13,10 @@ import yaml
 class SAWITConfig:
     """Main configuration for SAWIT-Net.
 
-    The defaults follow the original experimental setup: ResNet-50, 512-dim
-    embedding, ArcFace, 112x112 input, replay buffer, and multi-component KD.
+    SAWIT-Net supports both replay-based continual learning and a PRD-style
+    replay-free mode. For ordinary image classification datasets such as
+    MedMNIST, ``head='linear'`` is recommended. For identity-like recognition,
+    ``head='arcface'`` can still be used.
     """
 
     # Data
@@ -29,7 +31,8 @@ class SAWITConfig:
     backbone: str = "resnet50"
     pretrained: bool = True
     emb_size: int = 512
-    head: str = "arcface"  # arcface or linear
+    proj_size: int = 128
+    head: str = "linear"  # linear or arcface
     arc_s: float = 30.0
     arc_m: float = 0.5
 
@@ -43,13 +46,27 @@ class SAWITConfig:
     seed: int = 42
     device: str = "auto"
 
-    # Continual learning
+    # Replay memory
     memory_limit: int = 500
     min_per_class: int = 0
-    kd_weight: float = 0.30
-    ms_weight: float = 0.30
-    ckd_weight: float = 0.20
-    proto_weight: float = 0.15
+
+    # SAWIT/continual learning losses
+    # Existing KD losses used mainly in full/replay-based mode.
+    kd_weight: float = 0.10
+    ms_weight: float = 0.00
+    ckd_weight: float = 0.00
+
+    # Prototype preservation for replay-based full mode.
+    proto_weight: float = 0.30
+
+    # PRD-style replay-free losses.
+    supcon_weight: float = 1.00
+    prototype_weight: float = 1.00
+    prd_weight: float = 4.00
+    supcon_temperature: float = 0.10
+    prd_temperature: float = 0.20
+
+    # Backward compatibility for old code using ckd_temperature.
     ckd_temperature: float = 2.0
 
     # Logging/checkpointing
