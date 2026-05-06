@@ -707,40 +707,6 @@ A strong continual learning method should maintain high old-class accuracy while
 
 ---
 
-## How to Publish SAWIT-Net to GitHub
-
-From the `SAWIT-Net` project folder:
-
-```bash
-git init
-git add .
-git commit -m "Initial release of SAWIT-Net"
-git branch -M main
-git remote add origin https://github.com/Hokimastah/SAWIT-Net.git
-git push -u origin main
-```
-
-If the remote already exists:
-
-```bash
-git remote set-url origin https://github.com/Hokimastah/SAWIT-Net.git
-git push -u origin main
-```
-
-After the repository is pushed, users can install SAWIT-Net directly with:
-
-```bash
-pip install git+https://github.com/Hokimastah/SAWIT-Net.git
-```
-
-For Google Colab:
-
-```python
-!pip install git+https://github.com/Hokimastah/SAWIT-Net.git
-```
-
----
-
 ## Notes and Limitations
 
 - SAWIT-Net is designed for supervised image classification.
@@ -767,6 +733,6 @@ trainer = SAWITTrainer(cfg)
 If you use SAWIT-Net in a project, thesis, or publication, please cite this repository:
 
 ```text
-SAWIT-Net: Strategic Adaptive Weight Integration and Transfer Network.
+SAWIT-Net: Self-Adaptive Weighted Incremental Transfer Network.
 GitHub Repository: https://github.com/Hokimastah/SAWIT-Net
 ```
