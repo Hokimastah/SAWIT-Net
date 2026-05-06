@@ -2,7 +2,7 @@
 
 ![alt text](<skip it/SAWIT-Net ikon.png>)
 
-**SAWIT-Net** stands for **Strategic Adaptive Weight Integration and Transfer Network**.
+**SAWIT-Net** stands for **Self-Adaptive Weighted Incremental Transfer Network**.
 
 SAWIT-Net is a PyTorch-based continual image classification toolkit designed to reduce **catastrophic forgetting** when a model learns new classes or new data sessions over time. It combines **ArcFace-based metric learning**, **herding replay**, **knowledge distillation**, **multi-scale feature preservation**, **contrastive distillation**, and **prototype preservation** in a single reusable training package.
 
